@@ -1,14 +1,33 @@
-machine:
-
-  ghc:
-    version: 8.6.5
-
-
-dependencies:
-
-  override:
-    - cabal update
-    - cabal sandbox init
-    - cabal install --only-dependencies -j
-    - cabal configure
-
+version: 2
+jobs:
+  build:
+    docker:
+      - image: SimonAlecks/hakyll:latest
+    steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "35:2c:cc:51:71:0e:ae:ff:8f:4a:80:32:af:cd:7d:fc"
+      - checkout
+      - restore_cache:
+          keys:
+            - v1-stack-work-{{ checksum "site.cabal" }}
+      - run:
+          name: Build the static site generator executable
+          command: stack build
+      - save_cache:
+          key: v1-stack-work-{{ checksum "site.cabal" }}
+          paths:
+            - ~/website-hakyll/.stack-work
+            - /root/.stack
+      - run:
+          name: Build the site
+          command: stack exec site rebuild
+      - store_artifacts:
+          path: _site
+          destination: built_site
+      - deploy:
+          name: Deploy to Github Pages
+          command: |
+            if [ "${CIRCLE_BRANCH}" == "master" ]; then
+              .circleci/deploy.sh
+            fi
